@@ -1,13 +1,12 @@
 import pygame
-
+import random
 from settings import settings
-from processing_funcs import create_bots, \
-    build_grid, \
-    collides_with_any
+from processing_funcs import build_grid, collides_with_any, create_bots
 from resources import SCREEN, CLOCK, GRASS_SURF
 
 pygame.init()
 
+# Создаём ботов через фабрику
 bots = create_bots()
 
 # Main loop
@@ -17,27 +16,34 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-    # Перестраиваем spatial hash grid для ускоренной проверки коллизий
+    # Убираем мёртвых ботов
+    bots = [b for b in bots if b.alive]
+
+    # Перестраиваем spatial hash grid
     grid = build_grid(bots)
-    # Отрисовка заднего фона (трава уже прорисована заранее)
+
+    # Рисуем фон
     SCREEN.blit(GRASS_SURF, (0, 0))
 
     # Двигаем и рисуем всех ботов
-    for i, b in enumerate(bots):
-        nx, ny = b.move_with_wrap()
+    for index, bot in enumerate(bots):
+        old_x, old_y = bot.x, bot.y
 
-        # Проверка коллизий
-        if collides_with_any(nx, ny, b.r, i, grid, bots):
-            # меняем направление на случайное при столкновении
-            b.bounce_randomly()
-            nx, ny = b.move_with_wrap()
-            # второй шанс: если всё ещё коллизия, просто оставляем текущее положение
-            if collides_with_any(nx, ny, b.r, i, grid, bots):
-                nx, ny = b.x, b.y
+        bot.update_position()
+        new_x, new_y = bot.x, bot.y
 
-        b.x, b.y = nx, ny
-        b.update_cell()
-        pygame.draw.circle(SCREEN, b.color, (int(b.x), int(b.y)), b.r)
+        if collides_with_any(new_x, new_y, bot.r, index, grid, bots):
+            bot.on_collision()
+
+            # После смены стратегии движения пробуем снова
+            bot.update_position()
+            new_x, new_y = bot.x, bot.y
+
+            # Если всё ещё коллизия — откат + небольшое случайное смещение, чтобы не застрять
+            bot.x, bot.y = old_x + random.choice([-1, 1]), old_y + random.choice([-1, 1])
+
+        bot.update_cell()
+        pygame.draw.circle(SCREEN, bot.color, (int(bot.x), int(bot.y)), bot.r)
 
     pygame.display.flip()
     CLOCK.tick(settings.FPS)

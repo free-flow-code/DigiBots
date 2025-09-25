@@ -1,46 +1,45 @@
-import random
-
 from settings import settings
+from movement_strategies import MovementStrategy, LinearMovement, StationaryMovement
+from collision_strategies import CollisionStrategy, DieOnCollision, RandomDirectionChange
 
 
-class Bot:
-    """Класс, описывающий "бота" (частицу) в симуляции.
+class BotBase:
+    """Абстрактный базовый класс для ботов.
 
-    Бот имеет позицию (x, y), скорость (vx, vy), радиус, цвет
-    и принадлежность к ячейке пространственной сетки.
+    Бот имеет позицию (x, y), радиус, цвет,
+    принадлежность к ячейке пространственной сетки, состояние (жив/мертв),
+    стратегии движения и столкновений.
     """
-    __slots__ = ("x", "y", "vx", "vy", "r", "color", "cell_x", "cell_y")
 
-    def __init__(self,
-                 x: float,
-                 y: float,
-                 vx: float,
-                 vy: float,
-                 r: int = settings.BOT_RADIUS,
-                 color: tuple[int, int, int] = settings.BOT_COLOR
-                 ) -> None:
-        """Создаёт объект бота.
+    __slots__ = ("x", "y", "r", "color", "cell_x", "cell_y",
+                 "alive", "movement", "collision")
 
-        Args:
-            x (float): Начальная координата X.
-            y (float): Начальная координата Y.
-            vx (float): Скорость по оси X.
-            vy (float): Скорость по оси Y.
-            r (int, optional): Радиус бота. По умолчанию settings.BOT_RADIUS.
-            color (tuple[int, int, int], optional): Цвет бота (RGB).
-               По умолчанию settings.BOT_COLOR.
-        """
-        self.x: float = x
-        self.y: float = y
-        self.vx: float = vx
-        self.vy: float = vy
-        self.r: int = r
-        self.color: tuple[int, int, int] = color
-        self.cell_x: int = 0
-        self.cell_y: int = 0
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        r: int,
+        color: tuple[int, int, int],
+        movement: MovementStrategy,
+        collision: CollisionStrategy,
+    ) -> None:
+        self.x = x
+        self.y = y
+        self.r = r
+        self.color = color
+        self.cell_x = 0
+        self.cell_y = 0
+        self.alive = True
+
+        # зависимости внедряются через стратегии
+        self.movement = movement
+        self.collision = collision
+
+    def set_color(self, color: tuple[int, int, int]) -> None:
+        self.color = color
 
     def update_cell(self) -> None:
-        """Обновляет координаты ячейки сетки, в которой находится бот.
+        """Обновляет координаты ячейки сетки.
 
         Используется для пространственного хэширования, чтобы ускорить
         поиск столкновений с соседними объектами.
@@ -48,22 +47,39 @@ class Bot:
         self.cell_x = int(self.x) // settings.CELL_SIZE
         self.cell_y = int(self.y) // settings.CELL_SIZE
 
-    def move_with_wrap(self) -> tuple[float, float]:
-        """Возвращает новые координаты с учётом wrap-around
-        (боты выходят с одной стороны и появляются с другой).
-        """
-        nx, ny = self.x + self.vx, self.y + self.vy
-        if nx < 0:
-            nx = settings.SCREEN_W
-        elif nx > settings.SCREEN_W:
-            nx = 0
-        if ny < 0:
-            ny = settings.SCREEN_H
-        elif ny > settings.SCREEN_H:
-            ny = 0
-        return nx, ny
+    def update_position(self) -> None:
+        """Обновляет координаты согласно стратегии движения."""
+        self.x, self.y = self.movement.move(self.x, self.y)
 
-    def bounce_randomly(self) -> None:
-        """Меняет направление движения на случайное."""
-        self.vx = random.choice([-1, 1])
-        self.vy = random.choice([-1, 1])
+    def on_collision(self) -> None:
+        """Реакция на столкновение по стратегии."""
+        self.collision.on_collision(self)
+
+
+# ====== Specific bots ======
+
+class HerbivoreBot(BotBase):
+    def __init__(self, x: float, y: float) -> None:
+        super().__init__(
+            x=x,
+            y=y,
+            r=settings.BOT_RADIUS,
+            color=settings.HERBIVORE_BOT_COLOR,
+            movement=LinearMovement(
+                settings.HERBIVORE_BOT_SPEED["vx"],
+                settings.HERBIVORE_BOT_SPEED["vy"],
+            ),
+            collision=RandomDirectionChange(),
+        )
+
+
+class PlantBot(BotBase):
+    def __init__(self, x: float, y: float) -> None:
+        super().__init__(
+            x=x,
+            y=y,
+            r=settings.BOT_RADIUS,
+            color=settings.PLANT_BOT_COLOR,
+            movement=StationaryMovement(),
+            collision=DieOnCollision(),
+        )

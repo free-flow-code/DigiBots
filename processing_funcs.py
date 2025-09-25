@@ -1,44 +1,61 @@
 import random
-from typing import Iterator
+from typing import Iterator, List, Dict, Tuple, Union
 
-from bots import Bot
+from bots import HerbivoreBot, PlantBot
 from settings import settings
+from bot_factory import BotFactory
+
+BotType = Union[HerbivoreBot, PlantBot]
 
 
-def create_bots() -> list[Bot]:
+def create_bots() -> List[BotType]:
     """Создаёт список ботов с уникальными начальными позициями (без пересечений).
 
-    Боты размещаются случайным образом внутри экрана так,
-    чтобы их радиусы не пересекались друг с другом.
+    Тип бота (подвижный/неподвижный) выбирается случайно в соответствии с
+    параметром settings.STATIC_FRACTION (доля неподвижных). Если этот параметр
+    отсутствует — используется 0.5 (половина/половина).
+
+    Чтобы избежать бесконечного ожидания на плотных полях, для каждой попытки
+    генерации позиции есть ограничение max_attempts — после его исчерпания бот
+    создаётся в любой случайной позиции (даже если есть пересечение).
 
     Returns:
         list[Bot]: Список инициализированных ботов.
     """
-    bots = []
+    bots: List[BotType] = []
+    static_fraction: float = getattr(settings, "STATIC_FRACTION", 0.5)
+    max_attempts = getattr(settings, "CREATE_MAX_ATTEMPTS", 2000)
+
     for _ in range(settings.NUM_BOTS):
+        attempts = 0
         while True:
+            attempts += 1
             x = random.randint(settings.BOT_RADIUS, settings.SCREEN_W - settings.BOT_RADIUS)
             y = random.randint(settings.BOT_RADIUS, settings.SCREEN_H - settings.BOT_RADIUS)
 
-            # Проверка на пересечение с уже созданными ботами
+            # Проверяем пересечения с уже созданными ботами
             good = True
             for b in bots:
                 dx = x - b.x
                 dy = y - b.y
-                if dx*dx + dy*dy < (settings.BOT_RADIUS*2) ** 2:
+                rsum = settings.BOT_RADIUS + b.r
+                if dx * dx + dy * dy < rsum * rsum:
                     good = False
                     break
+
             if good:
-                vx = random.choice([-1, 1])
-                vy = random.choice([-1, 1])
-                bots.append(Bot(x, y, vx, vy))
+                bots.append(BotFactory.create_random(x, y, static_fraction))
+                break
+
+            # Фолбэк: если слишком много неудачных попыток — создаём бота без проверки
+            if attempts >= max_attempts:
+                bots.append(BotFactory.create_random(x, y, static_fraction))
                 break
 
     return bots
 
 
-# Build grid
-def build_grid(bots: list[Bot]) -> dict[tuple[int, int], list[int]]:
+def build_grid(bots: List[BotType]) -> Dict[Tuple[int, int], List[int]]:
     """Создаёт пространственную сетку (spatial hash) для ускорения поиска коллизий.
 
     Args:
@@ -48,15 +65,17 @@ def build_grid(bots: list[Bot]) -> dict[tuple[int, int], list[int]]:
         dict[tuple[int, int], list[int]]: Словарь, где ключ — координаты ячейки сетки,
         а значение — список индексов ботов, находящихся в этой ячейке.
     """
-    grid = {}
+    grid: Dict[Tuple[int, int], List[int]] = {}
     for i, b in enumerate(bots):
+        if not b.alive:  # мёртвые не участвуют
+            continue
         b.update_cell()
         key = (b.cell_x, b.cell_y)
         grid.setdefault(key, []).append(i)
     return grid
 
 
-def neighbor_cells(cx: int, cy: int) -> Iterator[tuple[int, int]]:
+def neighbor_cells(cx: int, cy: int) -> Iterator[Tuple[int, int]]:
     """Генерирует координаты соседних ячеек вокруг заданной.
 
     Перебирает все 9 ячеек вокруг бота:
@@ -95,8 +114,8 @@ def collides_with_any(
     y: float,
     r: int,
     bot_index: int,
-    grid: dict[tuple[int, int], list[int]],
-    bots: list[Bot],
+    grid: Dict[Tuple[int, int], List[int]],
+    bots: List[BotType],
 ) -> bool:
     """Проверяет, сталкивается ли бот с другими ботами поблизости.
 
@@ -123,6 +142,6 @@ def collides_with_any(
             dx = x - other.x
             dy = y - other.y
             rsum = r + other.r
-            if dx*dx + dy*dy < rsum*rsum:
+            if dx * dx + dy * dy < rsum * rsum:
                 return True
     return False

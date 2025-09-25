@@ -1,4 +1,3 @@
-import random
 from typing import Iterator, List, Dict, Tuple, Union
 
 from bots import HerbivoreBot, PlantBot
@@ -6,52 +5,19 @@ from settings import settings
 from bot_factory import BotFactory
 
 BotType = Union[HerbivoreBot, PlantBot]
+BotFactory.register("plant", PlantBot)
+BotFactory.register("herbivore", HerbivoreBot)
 
 
 def create_bots() -> List[BotType]:
-    """Создаёт список ботов с уникальными начальными позициями (без пересечений).
-
-    Тип бота (подвижный/неподвижный) выбирается случайно в соответствии с
-    параметром settings.STATIC_FRACTION (доля неподвижных). Если этот параметр
-    отсутствует — используется 0.5 (половина/половина).
-
-    Чтобы избежать бесконечного ожидания на плотных полях, для каждой попытки
-    генерации позиции есть ограничение max_attempts — после его исчерпания бот
-    создаётся в любой случайной позиции (даже если есть пересечение).
+    """Создаёт список ботов через фабрику, с уникальными начальными позициями (без пересечений).
 
     Returns:
-        list[Bot]: Список инициализированных ботов.
+        list[BotType]: Список инициализированных ботов.
     """
     bots: List[BotType] = []
-    static_fraction: float = getattr(settings, "STATIC_FRACTION", 0.5)
-    max_attempts = getattr(settings, "CREATE_MAX_ATTEMPTS", 2000)
-
-    for _ in range(settings.NUM_BOTS):
-        attempts = 0
-        while True:
-            attempts += 1
-            x = random.randint(settings.BOT_RADIUS, settings.SCREEN_W - settings.BOT_RADIUS)
-            y = random.randint(settings.BOT_RADIUS, settings.SCREEN_H - settings.BOT_RADIUS)
-
-            # Проверяем пересечения с уже созданными ботами
-            good = True
-            for b in bots:
-                dx = x - b.x
-                dy = y - b.y
-                rsum = settings.BOT_RADIUS + b.r
-                if dx * dx + dy * dy < rsum * rsum:
-                    good = False
-                    break
-
-            if good:
-                bots.append(BotFactory.create_random(x, y, static_fraction))
-                break
-
-            # Фолбэк: если слишком много неудачных попыток — создаём бота без проверки
-            if attempts >= max_attempts:
-                bots.append(BotFactory.create_random(x, y, static_fraction))
-                break
-
+    bots += BotFactory.create_many("plant", settings.PLANT_BOTS_QUANTITY, bots)
+    bots += BotFactory.create_many("herbivore", settings.HERBIVORE_BOTS_QUANTITY, bots)
     return bots
 
 

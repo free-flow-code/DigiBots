@@ -9,8 +9,8 @@ class Settings(BaseSettings):
     FPS: int = 60
 
     # Bots
-    NUM_BOTS: int = 100
     BOT_RADIUS: int = 5
+    CREATE_MAX_ATTEMPTS: int = 2000
 
     DEFAULT_BOT_COLOR: tuple[int, int, int] = (0, 0, 0)
     PLANT_BOT_COLOR: tuple[int, int, int] = (34, 136, 34)
@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     DEFAULT_BOT_SPEED: dict[str, int] = {'vx': 5, 'vy': 5}
     PLANT_BOT_SPEED: dict[str, int] = {'vx': 0, 'vy': 0}
     HERBIVORE_BOT_SPEED: dict[str, int] = {'vx': 5, 'vy': 5}
+
+    PLANT_BOTS_QUANTITY: int = 1000
+    HERBIVORE_BOTS_QUANTITY: int = 100
 
     # Colors
     BG_COLOR: tuple[int, int, int] = (255, 255, 255)

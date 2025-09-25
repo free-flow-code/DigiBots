@@ -22,6 +22,6 @@ def make_grass_surf(step: int = 2) -> pygame.Surface:
 
 # Инициализация только ресурсов pygame
 SCREEN = pygame.display.set_mode((settings.SCREEN_W, settings.SCREEN_H))
-pygame.display.set_caption("Colliding Circles - molecules style")
+pygame.display.set_caption("DigiBots")
 CLOCK = pygame.time.Clock()
 GRASS_SURF = make_grass_surf()
